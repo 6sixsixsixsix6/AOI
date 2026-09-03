@@ -1,0 +1,26 @@
+{
+    "environment_id": "demo-001",
+    "os": {
+        "name": "Ubuntu",
+        "version": "22.04"
+    },
+    "web_server": {
+        "name": "Apache",
+        "version": "2.4.51"
+    },
+    "framework": {
+        "name": "PHP",
+        "version": "8.1"
+    },
+    "database": {
+        "name": "MySQL",
+        "version": "8.0"
+    },
+    "services": [
+        {
+            "port": 80,
+            "protocol": "http",
+            "service": "Apache"
+        }
+    ]
+}
