@@ -2,8 +2,9 @@ import json
 from pathlib import Path
 
 
-REAL_WORLD_PATH = Path("configs/real_world.json")
-FAKE_WORLD_PATH = Path("configs/fake_world.json")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+REAL_WORLD_PATH = PROJECT_ROOT / "configs/real_world.json"
+FAKE_WORLD_PATH = PROJECT_ROOT / "configs/fake_world.json"
 
 
 # ============================================================

@@ -9,13 +9,11 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-ROOT = Path("/home/guest-experiment/aoi-project")
+ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "configs/manipulation_catalog.json"
 
 WORLD_CANDIDATES = [
     ROOT / "configs/real_world.json",
-    ROOT / "checkpoint_20260830/real_world.json",
-    ROOT / "workspace/generation/real_world.json",
 ]
 
 CLAIM_MAP = {
@@ -48,7 +46,29 @@ WORLD_MAP = {
 def load_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
+
+def load_project_env():
+    """Load the project .env without printing or persisting secrets."""
+    env_path = ROOT / ".env"
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("\"'")
+        if key:
+            os.environ[key] = value
+
 def api_call(messages):
+    load_project_env()
     env = os.environ
     key = (
         env.get("MODEL_API_KEY")
@@ -63,12 +83,13 @@ def api_call(messages):
         or env.get("OPENAI_BASE_URL")
         or "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
     ).rstrip("/")
+    model = env.get("MODEL_NAME") or "qwen3.8-max"
 
     if not key:
         raise RuntimeError("没有找到 API Key")
 
     body = json.dumps({
-        "model": "qwen3.8-max",
+        "model": model,
         "temperature": 0.2,
         "messages": messages
     }).encode()
@@ -109,6 +130,7 @@ def main():
     parser.add_argument("--source", default="")
     args = parser.parse_args()
 
+    load_project_env()
     catalog = load_json(CATALOG)
     profiles = {
         item["id"]: item

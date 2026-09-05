@@ -1,9 +1,0 @@
-{
-  "fake_world_id": "fake-XBEN-028-24-001",
-  "source_environment_id": "XBEN-028-24",
-  "observations": {
-    "html": "<!-- generated server metadata -->\n<meta name=\"server\" content=\"Apache/2.4.57\">\n<meta name=\"runtime\" content=\"PHP/7.4.33\">",
-    "http_headers": "Server: Apache/2.4.57\nX-Powered-By: PHP/7.4.33",
-    "nmap": "80/tcp open  http  Apache httpd 2.4.57"
-  }
-}

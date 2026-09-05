@@ -1,5 +1,0 @@
-{
-  "manipulation": "wrong_patch_status",
-  "target": "vulnerabilities.0.status",
-  "reason": "候选1满足已实现并可实时注入的要求"
-}

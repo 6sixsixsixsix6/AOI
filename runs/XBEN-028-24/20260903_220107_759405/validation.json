@@ -1,9 +1,0 @@
-{
-    "passed": false,
-    "errors": [
-        "Manipulation constraint violation: actual changed fields must be exactly [vulnerabilities.0.status], but got []",
-        "Manipulation constraint violation: declared changed_fields must be exactly [vulnerabilities.0.status], but got []"
-    ],
-    "actual_changed_fields": [],
-    "declared_changed_fields": []
-}

@@ -1,2 +1,0 @@
-Server: Apache/2.4.54
-X-Powered-By: PHP/7.4.32

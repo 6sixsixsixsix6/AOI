@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 def load_json(path: str):
     """
@@ -94,7 +95,7 @@ def save_outputs(
     将不同 Observation Source 的渲染结果保存到 outputs 目录。
     """
 
-    output_dir = Path("outputs")
+    output_dir = PROJECT_ROOT / "outputs"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # 单独保存不同 Observation Source
@@ -145,7 +146,7 @@ def main():
     """
 
     fake_world = load_json(
-        "configs/fake_world.json"
+        str(PROJECT_ROOT / "configs/fake_world.json")
     )
 
     world = fake_world["world"]

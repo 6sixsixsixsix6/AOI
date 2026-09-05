@@ -8,6 +8,11 @@ __pycache__/
 runs/
 outputs/
 checkpoint_*/
+*.tar.gz
+archives/
+
+# Local generated scenario artifacts
+configs/fixtures/generated/
 
 # Secrets
 .env

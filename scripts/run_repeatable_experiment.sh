@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-PROJECT="/home/guest-experiment/aoi-project"
-COMPOSE_DIR="/home/guest-experiment/validation-benchmarks/benchmarks/XBEN-028-24"
-COMPOSE_FILE="$COMPOSE_DIR/docker-compose.yml"
-COMPOSE_PROJECT="guest-experiment-xben028"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT="${AOI_PROJECT:-$(cd -- "$SCRIPT_DIR/.." && pwd)}"
+COMPOSE_DIR="${AOI_COMPOSE_DIR:-/home/guest-experiment/validation-benchmarks/benchmarks/XBEN-028-24}"
+COMPOSE_FILE="${AOI_COMPOSE_FILE:-$COMPOSE_DIR/docker-compose.yml}"
+COMPOSE_PROJECT="${AOI_COMPOSE_PROJECT:-guest-experiment-xben028}"
 SERVICE="web"
 
 MODE="${1:-}"
-SOURCE_ARG="${2:-outputs/api_vulnerabilities.baseline.json}"
+SOURCE_ARG="${2:-configs/fixtures/api_vulnerabilities.baseline.json}"
 
 if [[ "$MODE" != "baseline" && "$MODE" != "injected" ]]; then
     echo "用法:"
     echo "  $0 baseline"
-    echo "  $0 injected [real_api_json]"
+    echo "  $0 injected [vulnerability_fixture_json]"
     exit 2
 fi
 
@@ -37,6 +38,36 @@ compose() {
         "$@"
 }
 
+load_env_file() {
+    local env_file="$1"
+
+    if [[ -f "$env_file" ]]; then
+        set -a
+        # shellcheck disable=SC1090
+        source "$env_file"
+        set +a
+    fi
+}
+
+# Load the current project configuration on every run.  The optional
+# PentestGPT file keeps compatibility with the previous server layout.
+load_env_file "$PROJECT/.env"
+load_env_file "${PENTESTGPT_ENV_FILE:-/home/guest-experiment/PentestGPT/.env}"
+
+MODEL_NAME="${MODEL_NAME:-qwen3.8-max}"
+MODEL_NAME="${MODEL_NAME//$'\r'/}"
+export MODEL_NAME
+
+API_KEY="${MODEL_API_KEY:-${QWEN_API_KEY:-${DASHSCOPE_API_KEY:-${OPENAI_API_KEY:-}}}}"
+BASE_URL="${MODEL_BASE_URL:-${QWEN_BASE_URL:-${DASHSCOPE_BASE_URL:-${OPENAI_BASE_URL:-https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1}}}}"
+BASE_URL="${BASE_URL//$'\r'/}"
+BASE_URL="${BASE_URL%/}"
+
+if [[ -n "$API_KEY" ]]; then
+    export OPENAI_API_KEY="$API_KEY"
+    export OPENAI_BASE_URL="$BASE_URL"
+fi
+
 if ! compose config --services | grep -Fxq "$SERVICE"; then
     echo "Compose 中找不到服务: $SERVICE"
     exit 4
@@ -44,8 +75,10 @@ fi
 
 RUN_ID="$(date +%Y%m%d_%H%M%S_%N)"
 RUN_DIR="$PROJECT/runs/XBEN-028-24/${MODE}/auto-${RUN_ID}"
-ARCHIVE="/home/guest-experiment/XBEN-028-24-${MODE}-${RUN_ID}.tar.gz"
+ARCHIVE_DIR="${AOI_ARCHIVE_DIR:-$PROJECT/archives}"
+ARCHIVE="$ARCHIVE_DIR/XBEN-028-24-${MODE}-${RUN_ID}.tar.gz"
 mkdir -p "$RUN_DIR"
+mkdir -p "$ARCHIVE_DIR"
 
 CONTAINER_ID=""
 
@@ -69,7 +102,7 @@ reset_clean() {
             state="$(docker inspect -f '{{.State.Status}}' "$CONTAINER_ID" 2>/dev/null || true)"
             health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$CONTAINER_ID" 2>/dev/null || true)"
 
-            if [[ "$state" == "running" && "$health" != "unhealthy" ]]; then
+            if [[ "$state" == "running" && ("$health" == "healthy" || "$health" == "no-healthcheck") ]]; then
                 break
             fi
         fi
@@ -104,7 +137,7 @@ reset_clean() {
     printf '%s\n' "$files" \
         > "$RUN_DIR/post_reset_injection_files.txt"
 
-    if [[ "$state" != "running" || "$health" == "unhealthy" || -n "$files" ]]; then
+    if [[ "$state" != "running" || ("$health" != "healthy" && "$health" != "no-healthcheck") || -n "$files" ]]; then
         echo "容器恢复检查失败:"
         printf '%s\n' "$files"
         return 1
@@ -191,27 +224,7 @@ else
         exit 22
     fi
 
-    load_env_file() {
-        local env_file="$1"
-
-        if [[ -f "$env_file" ]]; then
-            set -a
-            source "$env_file"
-            set +a
-        fi
-    }
-
-    load_env_file "$PROJECT/.env"
-    load_env_file "/home/guest-experiment/PentestGPT/.env"
-
-    API_KEY="${MODEL_API_KEY:-${QWEN_API_KEY:-${DASHSCOPE_API_KEY:-${OPENAI_API_KEY:-}}}}"
-    BASE_URL="${MODEL_BASE_URL:-${QWEN_BASE_URL:-${DASHSCOPE_BASE_URL:-${OPENAI_BASE_URL:-https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1}}}}"
-    MODEL_NAME="${MODEL_NAME:-qwen3.8-max}"
-
     API_KEY="${API_KEY//$'\r'/}"
-    BASE_URL="${BASE_URL//$'\r'/}"
-    BASE_URL="${BASE_URL%/}"
-    MODEL_NAME="${MODEL_NAME//$'\r'/}"
 
     if [[ -z "$API_KEY" ]]; then
         echo "没有找到 Qwen API Key"

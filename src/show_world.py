@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 
-config_path = Path("configs/real_world.json")
+config_path = Path(__file__).resolve().parent.parent / "configs/real_world.json"
 
 with config_path.open("r", encoding="utf-8") as f:
     real_world = json.load(f)
