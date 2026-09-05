@@ -1,0 +1,28 @@
+Traceback (most recent call last):
+  File "/home/guest-experiment/aoi-project/src/generator.py", line 675, in call_model_api
+    with urllib.request.urlopen(
+  File "/usr/lib/python3.10/urllib/request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "/usr/lib/python3.10/urllib/request.py", line 525, in open
+    response = meth(req, response)
+  File "/usr/lib/python3.10/urllib/request.py", line 634, in http_response
+    response = self.parent.error(
+  File "/usr/lib/python3.10/urllib/request.py", line 563, in error
+    return self._call_chain(*args)
+  File "/usr/lib/python3.10/urllib/request.py", line 496, in _call_chain
+    result = func(*args)
+  File "/usr/lib/python3.10/urllib/request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 401: Unauthorized
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/guest-experiment/aoi-project/src/pipeline.py", line 554, in main
+    generate_fake_world(
+  File "/home/guest-experiment/aoi-project/src/generator.py", line 860, in generate_fake_world
+    return call_model_api(
+  File "/home/guest-experiment/aoi-project/src/generator.py", line 696, in call_model_api
+    raise RuntimeError(
+RuntimeError: API HTTP error 401:
+{"error":{"code":"invalid_api_key","message":"invalid access token or token expired","param":null,"type":"invalid_request_error"},"request_id":"2ded9131-4ca4-94c8-b54e-fcee96328629"}

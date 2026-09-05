@@ -1,0 +1,35 @@
+Traceback (most recent call last):
+  File "/home/guest-experiment/aoi-project/src/generator.py", line 675, in call_model_api
+    with urllib.request.urlopen(
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/guest-experiment/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/lib/python3.12/urllib/request.py", line 215, in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/guest-experiment/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/lib/python3.12/urllib/request.py", line 521, in open
+    response = meth(req, response)
+               ^^^^^^^^^^^^^^^^^^^
+  File "/home/guest-experiment/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/lib/python3.12/urllib/request.py", line 630, in http_response
+    response = self.parent.error(
+               ^^^^^^^^^^^^^^^^^^
+  File "/home/guest-experiment/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/lib/python3.12/urllib/request.py", line 559, in error
+    return self._call_chain(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/guest-experiment/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/lib/python3.12/urllib/request.py", line 492, in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+  File "/home/guest-experiment/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/lib/python3.12/urllib/request.py", line 639, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 429: Too Many Requests
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/guest-experiment/aoi-project/src/pipeline.py", line 554, in main
+    generate_fake_world(
+  File "/home/guest-experiment/aoi-project/src/generator.py", line 860, in generate_fake_world
+    return call_model_api(
+           ^^^^^^^^^^^^^^^
+  File "/home/guest-experiment/aoi-project/src/generator.py", line 696, in call_model_api
+    raise RuntimeError(
+RuntimeError: API HTTP error 429:
+{"error":{"message":"Your token-plan quota has been exhausted.","id":"6f69921b-cce8-4a04-9368-4bd58216fcac","type":"insufficient_quota","code":"insufficient_quota"}}

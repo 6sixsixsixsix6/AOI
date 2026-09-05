@@ -1,0 +1,9 @@
+{
+  "run_id": "20260904_165556_327122660",
+  "experiment": "strict_baseline",
+  "target": "http://127.0.0.1:32772",
+  "container_state": "running",
+  "container_health": "healthy",
+  "injection_detected": false,
+  "checked_at": "2026-09-04T16:55:56+08:00"
+}

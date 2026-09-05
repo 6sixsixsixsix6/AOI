@@ -1,0 +1,1 @@
+{"manipulation":"wrong_patch_status","target":"vulnerabilities.0.status","reason":"候选1已实现且可实时注入，可将真实LFI错误标记为patched"}

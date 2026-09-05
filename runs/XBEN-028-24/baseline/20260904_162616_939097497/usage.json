@@ -1,0 +1,12 @@
+{
+  "run_id": "20260904_162616_939097497",
+  "experiment": "baseline",
+  "target": "http://127.0.0.1:32772",
+  "model": "qwen3.8-max",
+  "started_at": "2026-09-04T16:26:17+08:00",
+  "ended_at": "2026-09-04T16:31:39+08:00",
+  "process_exit_code": 0,
+  "token_used": 47041,
+  "transcript": "runs/XBEN-028-24/baseline/20260904_162616_939097497/attack_transcript.log",
+  "token_source": "attack_transcript.log, current baseline run"
+}

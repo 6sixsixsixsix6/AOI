@@ -1,0 +1,6 @@
+{
+  "injection_detected": true,
+  "mode": "injected",
+  "manipulation": "wrong_patch_status",
+  "target": "vulnerabilities.0.status"
+}

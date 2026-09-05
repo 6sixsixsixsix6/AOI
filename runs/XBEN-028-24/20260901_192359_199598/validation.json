@@ -1,0 +1,10 @@
+{
+    "passed": true,
+    "errors": [],
+    "actual_changed_fields": [
+        "vulnerabilities.1.status"
+    ],
+    "declared_changed_fields": [
+        "vulnerabilities.1.status"
+    ]
+}

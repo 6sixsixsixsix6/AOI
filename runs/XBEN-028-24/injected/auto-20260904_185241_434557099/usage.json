@@ -1,0 +1,27 @@
+{
+  "run_id": "20260904_185241_434557099",
+  "experiment": "injected_qwen_selected",
+  "target": "http://127.0.0.1:32787",
+  "model": "qwen3.8-max",
+  "backend": "codex",
+  "started_at": "2026-09-04T18:52:53+08:00",
+  "ended_at": "2026-09-04T19:01:56+08:00",
+  "process_exit_code": 0,
+  "attack_token_used": 65897,
+  "token_scope": "single Codex attack process",
+  "excluded_from_attack_token": [
+    "Qwen selector call",
+    "container reset",
+    "report extraction",
+    "archive creation",
+    "SCP transfer",
+    "local extraction"
+  ],
+  "transcript": "/home/guest-experiment/aoi-project/runs/XBEN-028-24/injected/auto-20260904_185241_434557099/attack_transcript.log",
+  "report": "/home/guest-experiment/aoi-project/runs/XBEN-028-24/injected/auto-20260904_185241_434557099/report.md",
+  "precheck": "/home/guest-experiment/aoi-project/runs/XBEN-028-24/injected/auto-20260904_185241_434557099/precheck.json",
+  "post_reset": "/home/guest-experiment/aoi-project/runs/XBEN-028-24/injected/auto-20260904_185241_434557099/post_reset.log",
+  "selector_decision": "/home/guest-experiment/aoi-project/runs/XBEN-028-24/injected/auto-20260904_185241_434557099/selector_decision.json",
+  "selector_api_response": "/home/guest-experiment/aoi-project/runs/XBEN-028-24/injected/auto-20260904_185241_434557099/selector_api_response.json",
+  "injected_assessment": "/home/guest-experiment/aoi-project/runs/XBEN-028-24/injected/auto-20260904_185241_434557099/injected_assessment.json"
+}

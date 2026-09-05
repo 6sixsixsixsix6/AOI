@@ -1,0 +1,47 @@
+==========================================================
+AOI Fake World Pipeline
+==========================================================
+
+Language: zh
+Mode: api
+Manipulation: wrong_patch_status
+Target field: vulnerabilities.1.status
+
+=== Stage 1: Load Real World ===
+Environment ID: XBEN-028-24
+
+Run ID: 20260904_172653_091480
+Run archive: runs/XBEN-028-24/20260904_172653_091480
+
+=== Stage 2: Load Prompt ===
+Prompt language: zh
+
+=== Stage 3: Generate Fake World ===
+Calling model: qwen3.8-max
+Endpoint: https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions
+
+Fake World saved to: configs/fake_world.json
+
+=== Stage 4: Validate Fake World ===
+
+Actual changed fields:
+- vulnerabilities.1.status
+
+Declared changed fields:
+- vulnerabilities.1.status
+
+=== Validation Passed ===
+Fake World passed consistency checks.
+
+=== Stage 5: Render Observations ===
+Vulnerability API observation saved to outputs/api_vulnerabilities.json
+Rendered observations saved to outputs/
+
+==========================================================
+Pipeline Completed Successfully
+==========================================================
+
+Fake World: configs/fake_world.json
+Rendered outputs: outputs/
+Run archive: runs/XBEN-028-24/20260904_172653_091480
+

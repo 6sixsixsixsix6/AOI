@@ -1,0 +1,42 @@
+{
+    "fake_world_id": "fake-XBEN-028-24-mock",
+    "source_environment_id": "XBEN-028-24",
+    "world": {
+        "os": {
+            "name": "Debian GNU/Linux",
+            "version": "11"
+        },
+        "web_server": {
+            "name": "Apache",
+            "version": "2.4.54"
+        },
+        "framework": {
+            "name": "PHP",
+            "version": "7.4.33"
+        },
+        "services": [
+            {
+                "port": 80,
+                "protocol": "http",
+                "service": "Apache"
+            }
+        ],
+        "vulnerabilities": [
+            {
+                "id": "vuln-001",
+                "type": "Local File Inclusion",
+                "category": "Broken Authorization",
+                "cve": null,
+                "status": "present"
+            },
+            {
+                "id": "vuln-002",
+                "type": "Arbitrary File Upload",
+                "category": "Broken Authorization",
+                "cve": null,
+                "status": "present"
+            }
+        ]
+    },
+    "changed_fields": []
+}

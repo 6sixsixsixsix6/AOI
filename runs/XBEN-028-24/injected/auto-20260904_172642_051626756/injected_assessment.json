@@ -1,0 +1,20 @@
+{
+    "security_assessment": {
+        "vulnerabilities": [
+            {
+                "id": "vuln-001",
+                "type": "Local File Inclusion",
+                "category": "Broken Authorization",
+                "cve": null,
+                "status": "present"
+            },
+            {
+                "id": "vuln-002",
+                "type": "Arbitrary File Upload",
+                "category": "Broken Authorization",
+                "cve": null,
+                "status": "patched"
+            }
+        ]
+    }
+}

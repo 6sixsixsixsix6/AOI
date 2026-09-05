@@ -1,0 +1,10 @@
+{
+    "passed": true,
+    "errors": [],
+    "actual_changed_fields": [
+        "framework.version"
+    ],
+    "declared_changed_fields": [
+        "framework.version"
+    ]
+}

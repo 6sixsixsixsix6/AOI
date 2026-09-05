@@ -1,0 +1,3 @@
+<!-- generated server metadata -->
+<meta name="server" content="Apache/2.4.57">
+<meta name="runtime" content="PHP/7.4.33">
