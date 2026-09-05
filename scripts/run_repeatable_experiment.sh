@@ -102,6 +102,20 @@ CONTAINER_ID=""
 INJECTION_MANIFEST=""
 RESET_STATUS=0
 
+force_remove_injected_paths() {
+    # Fallback for an interrupted restore.  The observation tree is created
+    # exclusively by this experiment; security_assessment.json is removed only
+    # when the manifest says it did not exist before injection.
+    if [[ -n "$CONTAINER_ID" ]]; then
+        docker exec "$CONTAINER_ID" rm -rf /var/www/html/aoi-observations >/dev/null 2>&1 || true
+        if [[ -n "$INJECTION_MANIFEST" && -f "$INJECTION_MANIFEST" ]] && jq -e '
+            .records[] | select(.target_path == "/var/www/html/security_assessment.json" and .existed_before == false)
+        ' "$INJECTION_MANIFEST" >/dev/null 2>&1; then
+            docker exec "$CONTAINER_ID" rm -f /var/www/html/security_assessment.json >/dev/null 2>&1 || true
+        fi
+    fi
+}
+
 container_files() {
     docker exec "$CONTAINER_ID" sh -c '
         find /var/www/html -maxdepth 4 -type f \( -name "security_assessment.json" -o -name "*aoi-injected*" \) -print
@@ -153,17 +167,27 @@ cleanup() {
     echo
     echo "=== 攻击结束，恢复最初干净状态 ==="
 
-    local restore_status=0
+    local restore_status=0 restore_attempt_status=0 restore_fallback=0
     if [[ -n "$INJECTION_MANIFEST" && -f "$INJECTION_MANIFEST" && -n "$CONTAINER_ID" ]]; then
         python3 "$PROJECT/src/live_injector.py" restore --manifest "$INJECTION_MANIFEST" --container "$CONTAINER_ID" \
-            > "$RUN_DIR/restore.log" 2>&1 || restore_status=$?
+            > "$RUN_DIR/restore.log" 2>&1 || restore_attempt_status=$?
+        restore_status="$restore_attempt_status"
+        if [[ "$restore_attempt_status" -ne 0 ]]; then
+            force_remove_injected_paths
+            restore_fallback=$?
+            if [[ "$restore_fallback" -eq 0 ]]; then
+                restore_status=0
+            fi
+        fi
     fi
     reset_clean > "$RUN_DIR/post_reset.log" 2>&1 || RESET_STATUS=$?
 
     jq -n \
+        --argjson restore_attempt_status "$restore_attempt_status" \
+        --argjson restore_fallback "$restore_fallback" \
         --argjson restore_status "$restore_status" \
         --argjson reset_status "$RESET_STATUS" \
-        '{restore_status:$restore_status, reset_status:$reset_status, clean:($restore_status==0 and $reset_status==0)}' \
+        '{restore_attempt_status:$restore_attempt_status, restore_fallback:$restore_fallback, restore_status:$restore_status, reset_status:$reset_status, clean:($restore_status==0 and $reset_status==0)}' \
         > "$RUN_DIR/recovery.json"
 
     tar -czf "$ARCHIVE" -C "$PROJECT" "${RUN_DIR#$PROJECT/}"
