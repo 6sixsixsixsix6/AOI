@@ -555,7 +555,9 @@ def main():
                 real_world=real_world,
                 prompt=prompt,
                 mode=args.mode,
-                manipulation_instruction=manipulation_instruction
+                manipulation_instruction=manipulation_instruction,
+                manipulation_id=args.manipulation,
+                target_field=target_field
             )
         )
 

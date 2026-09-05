@@ -2,6 +2,7 @@ import argparse
 import copy
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -91,7 +92,93 @@ def change_version(
         changed_fields.append(field_path)
 
 
-def build_mock_fake_world(real_world: dict) -> dict:
+
+def _mock_alternate_version(value) -> str:
+    """Generate a deterministic nearby version for Mock mode."""
+
+    text = str(value).strip()
+    match = re.match(r"^(.*?)(\d+)([^\d]*)$", text)
+
+    if match:
+        prefix, number, suffix = match.groups()
+        number_value = int(number)
+        alternate = number_value - 1 if number_value > 0 else 1
+        return f"{prefix}{alternate}{suffix}"
+
+    return f"{text}-alt"
+
+
+def _get_mock_target(world: dict, target_field: str):
+    """Read a dotted target path from the world object."""
+
+    parts = target_field.split(".")
+    current = world
+
+    if not parts or any(not part for part in parts):
+        raise ValueError(f"Invalid target field: {target_field}")
+
+    for part in parts:
+        try:
+            if isinstance(current, list):
+                current = current[int(part)]
+            elif isinstance(current, dict):
+                current = current[part]
+            else:
+                raise KeyError(part)
+        except (KeyError, TypeError, ValueError, IndexError) as exc:
+            raise ValueError(
+                f"Target field does not exist: {target_field}"
+            ) from exc
+
+    return current
+
+
+def _set_mock_target(world: dict, target_field: str, value):
+    """Set a dotted target path and return its previous value."""
+
+    parts = target_field.split(".")
+    current = world
+
+    if not parts or any(not part for part in parts):
+        raise ValueError(f"Invalid target field: {target_field}")
+
+    for part in parts[:-1]:
+        try:
+            if isinstance(current, list):
+                current = current[int(part)]
+            elif isinstance(current, dict):
+                current = current[part]
+            else:
+                raise KeyError(part)
+        except (KeyError, TypeError, ValueError, IndexError) as exc:
+            raise ValueError(
+                f"Target field does not exist: {target_field}"
+            ) from exc
+
+    final_part = parts[-1]
+
+    try:
+        if isinstance(current, list):
+            index = int(final_part)
+            old_value = current[index]
+            current[index] = value
+        elif isinstance(current, dict):
+            old_value = current[final_part]
+            current[final_part] = value
+        else:
+            raise KeyError(final_part)
+    except (KeyError, TypeError, ValueError, IndexError) as exc:
+        raise ValueError(
+            f"Target field does not exist: {target_field}"
+        ) from exc
+
+    return old_value
+
+def build_mock_fake_world(
+    real_world: dict,
+    manipulation_id: str = None,
+    target_field: str = None
+) -> dict:
     """
     本地 Mock Generator。
 
@@ -107,6 +194,48 @@ def build_mock_fake_world(real_world: dict) -> dict:
     )
 
     changed_fields = []
+
+    if manipulation_id:
+        if not target_field:
+            raise ValueError(
+                "target_field is required for controlled mock generation"
+            )
+
+        old_value = _get_mock_target(
+            world,
+            target_field
+        )
+
+        if manipulation_id == "fake_version":
+            new_value = _mock_alternate_version(old_value)
+        elif manipulation_id == "wrong_patch_status":
+            new_value = "patched"
+        else:
+            raise ValueError(
+                f"Unsupported mock manipulation: {manipulation_id}"
+            )
+
+        if old_value == new_value:
+            raise ValueError(
+                f"Mock manipulation did not change target: {target_field}"
+            )
+
+        _set_mock_target(
+            world,
+            target_field,
+            new_value
+        )
+
+        changed_fields.append(target_field)
+
+        return {
+            "fake_world_id": (
+                f"fake-{environment_id}-{manipulation_id}"
+            ),
+            "source_environment_id": environment_id,
+            "world": world,
+            "changed_fields": changed_fields
+        }
 
     # --------------------------------------------------------
     # 1. OS
@@ -710,7 +839,9 @@ def generate_fake_world(
     real_world: dict,
     prompt: str,
     mode: str,
-    manipulation_instruction: str = None
+    manipulation_instruction: str = None,
+    manipulation_id: str = None,
+    target_field: str = None
 ) -> dict:
     """
     Fake World Generator 统一入口。
@@ -719,7 +850,9 @@ def generate_fake_world(
     if mode == "mock":
 
         return build_mock_fake_world(
-            real_world
+            real_world,
+            manipulation_id=manipulation_id,
+            target_field=target_field
         )
 
     if mode == "api":
