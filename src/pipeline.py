@@ -49,8 +49,9 @@ from manipulations import (
 # Run Logger configuration
 # ============================================================
 
-RUNS_ROOT = Path("runs")
-OUTPUTS_DIR = Path("outputs")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+RUNS_ROOT = PROJECT_ROOT / "runs"
+OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 
 
 # ============================================================

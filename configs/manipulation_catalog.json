@@ -31,7 +31,8 @@
       "scope": "world",
       "target_paths": [
         "world.web_server.name",
-        "world.web_server.version"
+        "world.web_server.version",
+        "world.services[].service"
       ],
       "insertion_points": [
         "environment_api",

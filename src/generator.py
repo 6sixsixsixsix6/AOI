@@ -13,15 +13,16 @@ from pathlib import Path
 # Paths
 # ============================================================
 
-REAL_WORLD_PATH = Path("configs/real_world.json")
-FAKE_WORLD_PATH = Path("configs/fake_world.json")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+REAL_WORLD_PATH = PROJECT_ROOT / "configs/real_world.json"
+FAKE_WORLD_PATH = PROJECT_ROOT / "configs/fake_world.json"
 
 PROMPT_PATHS = {
-    "zh": Path("prompts/fake_world_generator_zh.txt"),
-    "en": Path("prompts/fake_world_generator_en.txt"),
+    "zh": PROJECT_ROOT / "prompts/fake_world_generator_zh.txt",
+    "en": PROJECT_ROOT / "prompts/fake_world_generator_en.txt",
 }
 
-RAW_RESPONSE_PATH = Path("outputs/last_api_response.json")
+RAW_RESPONSE_PATH = PROJECT_ROOT / "outputs/last_api_response.json"
 
 
 # ============================================================
