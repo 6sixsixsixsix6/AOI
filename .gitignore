@@ -1,0 +1,25 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+*.bak
+*.backup*
+runs/
+outputs/
+checkpoint_*/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Experiment outputs and archives
+runs/
+*.tar.gz
+
+# Python cache and backups
+__pycache__/
+*.pyc
+*.bak
+*.backup*
