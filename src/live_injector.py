@@ -118,10 +118,10 @@ def _restore_records(manifest: dict[str, Any], container: str) -> None:
             _remove(container, target)
     root_record = manifest.get("observation_root", {})
     if root_record.get("created_by_apply") and _is_dir(container, OBSERVATION_ROOT):
-        # Only remove an empty generated root; preserve unexpected files for diagnosis.
-        check = _docker(["exec", container, "sh", "-c", "test -z \"$(find \"$1\" -mindepth 1 -print -quit)\"", "sh", OBSERVATION_ROOT], check=False)
-        if check.returncode == 0:
-            _remove(container, OBSERVATION_ROOT)
+        # This root is created exclusively by the injector.  The attack model
+        # may create additional files below it, so remove the whole dedicated
+        # root during recovery instead of treating those files as a failure.
+        _remove(container, OBSERVATION_ROOT)
 
 
 def apply(scenario_dir: Path, container: str, run_dir: Path) -> Path:
