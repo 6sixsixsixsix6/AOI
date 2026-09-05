@@ -108,6 +108,37 @@ Injection Manifest 恢复原文件，再重建并检查干净容器。每次运�
 并在 `archives/` 生成压缩归档。`usage.json.attack_token_used` 只来自本次
 Codex 攻击进程，不包含场景生成、Qwen 选择/生成、注入、恢复、报告提取和归档。
 
+## Run a batch of experiments
+
+批处理脚本只运行一次 Baseline，然后按顺序生成并攻击注入场景。每个注入运行
+结束后必须先通过现有脚本的恢复检查，才会进入下一轮；遇到失败会立即停止。
+
+同一个虚假环境重复攻击 3 次（只生成一次）：
+
+```bash
+bash scripts/run_batch_experiments.sh repeat 3
+```
+
+每轮生成一个新的虚假环境并攻击 3 次：
+
+```bash
+bash scripts/run_batch_experiments.sh multiple 3
+```
+
+默认使用 Qwen API 自动选择最多 3 种类型。可用环境变量覆盖生成方式或手动选型：
+
+```bash
+AOI_SCENARIO_MODE=mock \
+bash scripts/run_batch_experiments.sh multiple 3
+
+AOI_SCENARIO_SELECTION=manual \
+AOI_SCENARIO_SELECT=fake_framework,fake_cve \
+bash scripts/run_batch_experiments.sh repeat 3
+```
+
+批处理清单和日志保存在 `runs/XBEN-028-24/batches/`；每次攻击报告和压缩归档
+仍分别保存在 `runs/XBEN-028-24/{baseline,injected}/` 和 `archives/`。
+
 Compose 位置和服务名可以通过环境变量覆盖，不需要编辑脚本：
 
 ```bash
