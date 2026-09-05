@@ -72,7 +72,9 @@ python3 scripts/generate_scenario.py --selection qwen --max 3
 ```
 
 Use `--select fake_framework,fake_cve` for an explicit selection. Every
-scenario is written under `runs/XBEN-028-24/generated/`.
+scenario is written under `runs/XBEN-028-24/generated/`. This command creates
+the scenario artifacts; it does not apply arbitrary catalog entries to the
+Docker target yet.
 
 ## Run the automatic attack
 
@@ -95,6 +97,10 @@ AOI_COMPOSE_FILE=/path/to/docker-compose.yml \
 AOI_COMPOSE_PROJECT=guest-experiment-xben028 \
 bash scripts/run_repeatable_experiment.sh baseline
 ```
+
+The live injected runner currently applies the `wrong_patch_status` profile to
+one of the two fixture vulnerabilities. The remaining catalog profiles are
+kept in the generation/plan layer for the next injection implementation.
 
 Reports are kept in `runs/`; compressed copies are placed in `archives/`.
 Both locations are ignored by Git so experiment output cannot pollute the
