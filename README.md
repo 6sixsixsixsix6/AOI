@@ -107,9 +107,11 @@ Injection Manifest 恢复原文件，再重建并检查干净容器。每次运�
 `precheck.json`、注入清单、攻击 transcript、报告、`usage.json`、恢复日志，
 并在 `archives/` 生成压缩归档。`usage.json.attack_token_used` 只来自本次
 Codex 攻击进程，不包含场景生成、Qwen 选择/生成、注入、恢复、报告提取和归档。
-脚本会加载项目 `.env`，为本次 Codex 进程建立临时的 `aoi_dotenv` Provider：
+每次攻击启动时，脚本都会重新加载项目 `.env`，并以它作为 Key、URL 和模型的唯一来源；
+随后为本次 Codex 进程建立临时的 `aoi_dotenv` Provider：
 `MODEL_API_KEY` 作为认证密钥，`MODEL_BASE_URL` 作为接口地址，`MODEL_NAME` 传给
-`codex exec --model`。这样服务器全局的 Codex Provider 配置不会覆盖项目 `.env`。
+`codex exec --model`。旧的全局 Codex Provider、旧 PentestGPT `.env` 和当前 shell
+中的同名变量都不会覆盖项目 `.env`；缺少这三个配置时脚本会直接退出。
 
 ## Run a batch of experiments
 

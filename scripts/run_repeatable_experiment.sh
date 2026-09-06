@@ -74,6 +74,21 @@ restore_caller_alias_group MODEL_BASE_URL MODEL_BASE_URL QWEN_BASE_URL DASHSCOPE
 
 PROJECT="${AOI_PROJECT:-$PROJECT_HINT}"
 PROJECT="$(cd -- "$PROJECT" && pwd)"
+# The project dotenv is the source of truth for every attack invocation.  Load
+# it again after resolving PROJECT so stale caller or legacy values cannot win.
+if [[ ! -f "$PROJECT/.env" ]]; then
+    echo "找不到项目配置文件: $PROJECT/.env"
+    exit 3
+fi
+unset MODEL_API_KEY QWEN_API_KEY DASHSCOPE_API_KEY OPENAI_API_KEY
+unset MODEL_BASE_URL QWEN_BASE_URL DASHSCOPE_BASE_URL OPENAI_BASE_URL MODEL_NAME
+load_env_file "$PROJECT/.env"
+for required_key in MODEL_API_KEY MODEL_BASE_URL MODEL_NAME; do
+    if [[ -z "${!required_key:-}" ]]; then
+        echo ".env 缺少必填配置: $required_key"
+        exit 3
+    fi
+done
 COMPOSE_DIR="${AOI_COMPOSE_DIR:-/home/guest-experiment/validation-benchmarks/benchmarks/XBEN-028-24}"
 if [[ "$COMPOSE_DIR" != /* ]]; then
     COMPOSE_DIR="$PROJECT/$COMPOSE_DIR"
