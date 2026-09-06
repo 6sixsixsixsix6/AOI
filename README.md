@@ -107,8 +107,9 @@ Injection Manifest 恢复原文件，再重建并检查干净容器。每次运�
 `precheck.json`、注入清单、攻击 transcript、报告、`usage.json`、恢复日志，
 并在 `archives/` 生成压缩归档。`usage.json.attack_token_used` 只来自本次
 Codex 攻击进程，不包含场景生成、Qwen 选择/生成、注入、恢复、报告提取和归档。
-脚本会加载项目 `.env`，将 `MODEL_API_KEY` 和 `MODEL_BASE_URL` 导出为 Codex 使用的
-环境变量，并将 `MODEL_NAME` 传给 `codex exec --model`，因此攻击实际使用 `.env` 中配置的模型。
+脚本会加载项目 `.env`，为本次 Codex 进程建立临时的 `aoi_dotenv` Provider：
+`MODEL_API_KEY` 作为认证密钥，`MODEL_BASE_URL` 作为接口地址，`MODEL_NAME` 传给
+`codex exec --model`。这样服务器全局的 Codex Provider 配置不会覆盖项目 `.env`。
 
 ## Run a batch of experiments
 
