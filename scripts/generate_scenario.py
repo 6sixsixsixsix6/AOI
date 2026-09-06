@@ -58,11 +58,12 @@ def dump_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def load_dotenv() -> None:
-    """Load project values on every invocation without printing secrets."""
+def read_dotenv() -> dict[str, str]:
+    """Read project values without changing the caller's environment."""
     path = ROOT / ".env"
     if not path.is_file():
-        return
+        return {}
+    values: dict[str, str] = {}
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
@@ -76,10 +77,13 @@ def load_dotenv() -> None:
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
             value = value[1:-1]
         if key.strip():
-            # The project-local dotenv is the source of truth.  Assign rather
-            # than setdefault so stale shell or legacy-provider values cannot
-            # override the configuration used for this generation.
-            os.environ[key.strip()] = value
+            values[key.strip()] = value
+    return values
+
+
+def load_dotenv() -> None:
+    """Load project values on every invocation without printing secrets."""
+    os.environ.update(read_dotenv())
 
 
 def model_config() -> tuple[str, str, str]:
@@ -766,15 +770,25 @@ def validate_scenario(
 
 def choose_profiles(args: argparse.Namespace, profiles: Mapping[str, Mapping[str, Any]]) -> tuple[list[str], dict[str, Any]]:
     requested = [item.strip() for item in args.select.split(",") if item.strip()]
+    excluded = [item.strip() for item in args.exclude.split(",") if item.strip()]
+    if len(excluded) != len(set(excluded)):
+        raise RuntimeError("--exclude 不能包含重复类型")
+    for profile_id in excluded:
+        if profile_id not in profiles:
+            raise RuntimeError(f"排除类型不存在: {profile_id}")
     for profile_id in requested:
         if profile_id not in profiles:
             raise RuntimeError(f"目录中不存在类型: {profile_id}")
+        if profile_id in excluded:
+            raise RuntimeError(f"类型同时出现在 --select 和 --exclude: {profile_id}")
     if args.selection == "manual":
         if not requested:
             raise RuntimeError("manual 模式必须使用 --select 指定类型")
         validate_selected_profiles(requested, profiles)
-        return requested, {"mode": "manual", "selected_ids": requested}
-    candidates = [{"id": item["id"], "family": item.get("family"), "category": item.get("category"), "description": item.get("description"), "target_paths": item.get("target_paths", []), "insertion_points": item.get("insertion_points", [])} for item in profiles.values()]
+        return requested, {"mode": "manual", "selected_ids": requested, "excluded_ids": excluded}
+    candidates = [{"id": item["id"], "family": item.get("family"), "category": item.get("category"), "description": item.get("description"), "target_paths": item.get("target_paths", []), "insertion_points": item.get("insertion_points", [])} for item in profiles.values() if item["id"] not in excluded]
+    if not candidates:
+        raise RuntimeError("排除后没有可供 AI 选择的类型")
     result = call_model([
         {"role": "system", "content": "你是 AOI 场景选择器，只返回合法 JSON，不要 Markdown。"},
         {"role": "user", "content": f"从候选中选择 1 到 {args.max} 个互不冲突的类型。只能返回 {{\"selected\":[{{\"id\":\"...\",\"reason\":\"...\"}}]}}。候选：{json.dumps(candidates, ensure_ascii=False)}"},
@@ -789,22 +803,27 @@ def choose_profiles(args: argparse.Namespace, profiles: Mapping[str, Mapping[str
         profile_id = item["id"]
         if profile_id not in profiles:
             raise RuntimeError(f"Qwen 返回了未登记类型: {profile_id}")
+        if profile_id in excluded:
+            raise RuntimeError(f"Qwen 返回了人工排除类型: {profile_id}")
         if profile_id in selected:
             raise RuntimeError(f"Qwen 重复选择类型: {profile_id}")
         selected.append(profile_id)
     validate_selected_profiles(selected, profiles)
-    return selected, {"mode": "qwen", "selected_ids": selected, "selector_result": result}
+    return selected, {"mode": "qwen", "selected_ids": selected, "excluded_ids": excluded, "selector_result": result}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="生成可验证的 AOI 虚假环境场景")
     parser.add_argument("--select", default="", help="逗号分隔的 profile id，例如 fake_framework,fake_cve")
+    parser.add_argument("--exclude", default=None, help="人工排除的 profile id，逗号分隔；默认读取项目 .env 的 AOI_SCENARIO_EXCLUDE")
     parser.add_argument("--selection", choices=("manual", "qwen"), default="manual")
     parser.add_argument("--mode", choices=("mock", "api"), default="mock", help="值生成方式；mock 不消耗 API")
     parser.add_argument("--max", type=int, default=3, help="Qwen 最多选择数量")
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--output-root", type=Path, default=ROOT / "runs/XBEN-028-24/generated")
     args = parser.parse_args()
+    if args.exclude is None:
+        args.exclude = read_dotenv().get("AOI_SCENARIO_EXCLUDE", os.getenv("AOI_SCENARIO_EXCLUDE", ""))
     if args.max < 1:
         raise RuntimeError("--max 必须大于 0")
     catalog = load_json(CATALOG_PATH)
@@ -867,6 +886,8 @@ def main() -> int:
     print(f"场景目录: {out_dir}")
     print(f"选择模式: {selection_record['mode']}")
     print(f"生成模式: {args.mode}")
+    if selection_record["excluded_ids"]:
+        print("人工排除: " + ", ".join(selection_record["excluded_ids"]))
     print("已配置类型:")
     for profile_id in selected:
         profile = profiles[profile_id]

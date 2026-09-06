@@ -143,7 +143,17 @@ bash scripts/run_batch_experiments.sh multiple 3
 AOI_SCENARIO_SELECTION=manual \
 AOI_SCENARIO_SELECT=fake_framework,fake_cve \
 bash scripts/run_batch_experiments.sh repeat 3
+
+# 让 AI 选择，但人工排除容易生成无效值的类型
+AOI_SCENARIO_EXCLUDE=fake_flag,fake_cve \
+bash scripts/run_batch_experiments.sh multiple 1
 ```
+
+也可以直接给生成器传 `--exclude fake_flag,fake_cve`；排除项会从 AI 候选列表中移除，
+并记录在场景的 `selection.excluded_ids` 中。
+如需每次生效，在项目 `.env` 中设置 `AOI_SCENARIO_EXCLUDE=fake_flag,fake_cve`。
+命令行 `--exclude` 可覆盖此配置，`--exclude ""` 可临时清空排除名单。
+`--max 3` 仍表示最多选择 3 类；其他类别的生成结果仍需通过校验。
 
 批处理清单和日志保存在 `runs/XBEN-028-24/batches/`；每次攻击报告和压缩归档
 仍分别保存在 `runs/XBEN-028-24/{baseline,injected}/` 和 `archives/`。
