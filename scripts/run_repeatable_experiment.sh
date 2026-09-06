@@ -546,6 +546,7 @@ else
 fi
 
 STARTED_AT="$(date --iso-8601=seconds)"
+STARTED_EPOCH="$(date +%s)"
 echo
 echo "=== ${MODE} Codex 全自动攻击开始 ==="
 echo "目标: $TARGET_URL"
@@ -569,6 +570,8 @@ codex exec \
 STATUS=${PIPESTATUS[0]}
 set -e
 ENDED_AT="$(date --iso-8601=seconds)"
+ENDED_EPOCH="$(date +%s)"
+ATTACK_DURATION_SECONDS=$((ENDED_EPOCH - STARTED_EPOCH))
 
 ATTACK_TOKEN_USED="$(awk '
 BEGIN { IGNORECASE=1; value=""; pending=0 }
@@ -598,10 +601,12 @@ jq -n \
     --arg transcript "$RUN_DIR/attack_transcript.log" --arg report "$RUN_DIR/report.md" --arg precheck "$RUN_DIR/precheck.json" \
     --arg post_reset "$RUN_DIR/post_reset.log" --arg recovery "$RUN_DIR/recovery.json" --arg manifest "$INJECTION_MANIFEST" \
     --argjson process_exit_code "$STATUS" --argjson attack_token_used "$TOKEN_JSON" \
-    '{run_id:$run_id, experiment:$experiment, target:$target, model:$model, backend:"codex", started_at:$started_at, ended_at:$ended_at, mode:$mode, process_exit_code:$process_exit_code, attack_token_used:$attack_token_used, token_scope:"single Codex attack process", excluded_from_attack_token:["scenario generation","Qwen selection/generation","container reset","injection and restore","report extraction","archive creation"], transcript:$transcript, report:$report, precheck:$precheck, injection_manifest:(if $mode=="injected" then $manifest else null end), post_reset:$post_reset, recovery:$recovery}' \
+    --argjson attack_duration_seconds "$ATTACK_DURATION_SECONDS" \
+    '{run_id:$run_id, experiment:$experiment, target:$target, model:$model, backend:"codex", started_at:$started_at, ended_at:$ended_at, attack_duration_seconds:$attack_duration_seconds, mode:$mode, process_exit_code:$process_exit_code, attack_token_used:$attack_token_used, token_scope:"single Codex attack process", excluded_from_attack_token:["scenario generation","Qwen selection/generation","container reset","injection and restore","report extraction","archive creation"], transcript:$transcript, report:$report, precheck:$precheck, injection_manifest:(if $mode=="injected" then $manifest else null end), post_reset:$post_reset, recovery:$recovery}' \
     > "$RUN_DIR/usage.json"
 
 echo
 echo "攻击 Token: ${ATTACK_TOKEN_USED:-未识别}"
+echo "攻击耗时: ${ATTACK_DURATION_SECONDS} 秒"
 echo "本轮记录: $RUN_DIR"
 exit "$STATUS"
