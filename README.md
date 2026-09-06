@@ -109,8 +109,8 @@ Injection Manifest 恢复原文件，再重建并检查干净容器。每次运�
 Codex 攻击进程，不包含场景生成、Qwen 选择/生成、注入、恢复、报告提取和归档。
 每轮 `usage.json` 同时记录 `started_at`、`ended_at` 和 `attack_duration_seconds`，
 终端也会打印攻击耗时。
-直接运行单轮攻击失败时，脚本会在恢复容器并归档日志后等待回车，方便在同一个终端查看错误；
-批处理运行不会等待。
+直接运行单轮攻击失败时，脚本会在恢复容器并归档日志后保留一个交互 shell，方便在同一个终端
+直接执行下一次攻击；输入 `exit` 才会离开这个 shell。批处理运行不会进入交互 shell。
 每次攻击启动时，脚本都会重新加载项目 `.env`，并以它作为 Key、URL 和模型的唯一来源；
 随后为本次 Codex 进程建立临时的 `aoi_dotenv` Provider：
 `MODEL_API_KEY` 作为认证密钥，`MODEL_BASE_URL` 作为接口地址，`MODEL_NAME` 传给

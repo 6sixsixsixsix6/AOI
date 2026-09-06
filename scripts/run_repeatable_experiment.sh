@@ -478,11 +478,12 @@ cleanup() {
     if [[ "$recovery_status" -ne 0 ]]; then
         [[ "$status" -eq 0 ]] && status=33
     fi
-    # Keep a directly launched failed run visible in terminal after cleanup.
-    # Batch runs pass an inherited lock token and must remain non-interactive.
+    # Keep a directly launched failed run in an interactive shell after
+    # cleanup. Batch runs pass an inherited lock token and remain non-interactive.
     if [[ "$status" -ne 0 && -z "$INHERITED_LOCK_TOKEN" && -t 0 ]]; then
-        echo "攻击失败，详细日志: $RUN_DIR/attack_transcript.log"
-        read -r -p "按回车退出终端..." || true
+        echo "攻击失败，已恢复干净状态。详细日志: $RUN_DIR/attack_transcript.log"
+        echo "当前终端保留，可直接执行下一次攻击。输入 exit 可离开此终端。"
+        exec "${SHELL:-/bin/bash}" -i
     fi
     exit "$status"
 }
