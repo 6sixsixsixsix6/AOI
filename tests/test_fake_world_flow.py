@@ -192,7 +192,7 @@ class FakeWorldFlowTests(unittest.TestCase):
                     generate_scenario.main()
             self.assertFalse(output_root.exists())
 
-    def test_caller_api_alias_overrides_dotenv_canonical_value(self) -> None:
+    def test_project_dotenv_overrides_caller_api_alias(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             project_root = Path(directory)
             (project_root / ".env").write_text(
@@ -201,7 +201,6 @@ class FakeWorldFlowTests(unittest.TestCase):
             )
             with (
                 mock.patch.object(generate_scenario, "ROOT", project_root),
-                mock.patch.object(generate_scenario, "_CALLER_ENV_VALUES", None),
                 mock.patch.dict(
                     os.environ,
                     {
@@ -212,8 +211,8 @@ class FakeWorldFlowTests(unittest.TestCase):
                 ),
             ):
                 key, base_url, _ = generate_scenario.model_config()
-            self.assertEqual(key, "caller-key")
-            self.assertEqual(base_url, "https://caller.example/v1")
+            self.assertEqual(key, "dotenv-key")
+            self.assertEqual(base_url, "https://dotenv.example/v1")
 
     def test_injector_rejects_mismatched_artifact_reference(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

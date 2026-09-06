@@ -29,7 +29,6 @@ CATALOG_PATH = ROOT / "configs/manipulation_catalog.json"
 DEFAULT_SOURCE = ROOT / "configs/real_world.json"
 _API_KEY_NAMES = ("MODEL_API_KEY", "QWEN_API_KEY", "DASHSCOPE_API_KEY", "OPENAI_API_KEY")
 _BASE_URL_NAMES = ("MODEL_BASE_URL", "QWEN_BASE_URL", "DASHSCOPE_BASE_URL", "OPENAI_BASE_URL")
-_CALLER_ENV_VALUES: dict[str, str] | None = None
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -61,16 +60,6 @@ def dump_json(path: Path, value: Any) -> None:
 
 def load_dotenv() -> None:
     """Load project values on every invocation without printing secrets."""
-    global _CALLER_ENV_VALUES
-    if _CALLER_ENV_VALUES is None:
-        # Keep the source of an alias value.  A caller-supplied OPENAI_* value
-        # must not be shadowed later by a project .env MODEL_* value merely
-        # because the canonical name sorts first.
-        _CALLER_ENV_VALUES = {
-            key: os.environ[key]
-            for key in (*_API_KEY_NAMES, *_BASE_URL_NAMES)
-            if key in os.environ
-        }
     path = ROOT / ".env"
     if not path.is_file():
         return
@@ -86,23 +75,17 @@ def load_dotenv() -> None:
         value = value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
             value = value[1:-1]
-        # Values explicitly supplied by the caller/environment take
-        # precedence over the project-local .env file.
         if key.strip():
-            os.environ.setdefault(key.strip(), value)
+            # The project-local dotenv is the source of truth.  Assign rather
+            # than setdefault so stale shell or legacy-provider values cannot
+            # override the configuration used for this generation.
+            os.environ[key.strip()] = value
 
 
 def model_config() -> tuple[str, str, str]:
     load_dotenv()
-    caller_values = _CALLER_ENV_VALUES or {}
-    key = next(
-        (caller_values[name] for name in _API_KEY_NAMES if caller_values.get(name)),
-        next((os.getenv(name) for name in _API_KEY_NAMES if os.getenv(name)), ""),
-    )
-    base = next(
-        (caller_values[name] for name in _BASE_URL_NAMES if caller_values.get(name)),
-        next((os.getenv(name) for name in _BASE_URL_NAMES if os.getenv(name)), "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"),
-    ).rstrip("/")
+    key = next((os.getenv(name) for name in _API_KEY_NAMES if os.getenv(name)), "")
+    base = next((os.getenv(name) for name in _BASE_URL_NAMES if os.getenv(name)), "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1").rstrip("/")
     model = os.getenv("MODEL_NAME") or "qwen3.8-max"
     return key or "", base, model
 
