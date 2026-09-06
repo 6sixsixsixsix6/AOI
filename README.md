@@ -147,6 +147,10 @@ AOI_COMPOSE_PROJECT=guest-experiment-xben028 \
 bash scripts/run_repeatable_experiment.sh baseline
 ```
 
+每次重置默认执行 `docker compose down --volumes`，这样 Compose 项目声明的
+命名卷也会随实验一起重建；外部卷仍由 Docker 保留。若基准 Compose 明确需要
+保留项目卷，可设置 `AOI_RESET_VOLUMES=false`，脚本会把该策略写入本轮记录。
+
 Reports are kept in `runs/`; compressed copies are placed in `archives/`.
 Both locations are ignored by Git so experiment output cannot pollute the
 source branch.

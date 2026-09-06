@@ -5,11 +5,81 @@ set -Eeuo pipefail
 # The existing repeatable runner owns container reset, injection, cleanup,
 # token accounting, and per-run archives. This wrapper only queues runs.
 
+DOTENV_KEYS=(
+    MODEL_API_KEY QWEN_API_KEY DASHSCOPE_API_KEY OPENAI_API_KEY
+    MODEL_BASE_URL QWEN_BASE_URL DASHSCOPE_BASE_URL OPENAI_BASE_URL MODEL_NAME
+    AOI_PROJECT AOI_COMPOSE_DIR AOI_COMPOSE_FILE AOI_COMPOSE_PROJECT AOI_SERVICE
+    AOI_EXPERIMENT_LOCK_DIR AOI_BATCH_LOCK_DIR AOI_EXPERIMENT_LOCK_TOKEN
+    AOI_RESET_VOLUMES AOI_ARCHIVE_DIR AOI_GENERATOR AOI_RUNNER
+    AOI_SCENARIO_OUTPUT_ROOT AOI_SCENARIO_SELECTION AOI_SCENARIO_MODE
+    AOI_SCENARIO_MAX AOI_SCENARIO_SELECT PENTESTGPT_ENV_FILE TMPDIR
+)
+declare -A CALLER_ENV_SET=()
+declare -A CALLER_ENV_VALUE=()
+for key in "${DOTENV_KEYS[@]}"; do
+    if [[ -v "$key" ]]; then
+        CALLER_ENV_SET["$key"]=1
+        CALLER_ENV_VALUE["$key"]="${!key}"
+    fi
+done
+
+load_env_file() {
+    local env_file="$1"
+    if [[ -f "$env_file" ]]; then
+        set -a
+        # shellcheck disable=SC1090
+        source "$env_file"
+        set +a
+    fi
+}
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT="${AOI_PROJECT:-$(cd -- "$SCRIPT_DIR/.." && pwd)}"
+CALLER_CWD="$PWD"
+PROJECT_HINT="${AOI_PROJECT:-$SCRIPT_DIR/..}"
+PROJECT_HINT="$(cd -- "$PROJECT_HINT" && pwd)"
+LEGACY_ENV_FILE="${PENTESTGPT_ENV_FILE:-/home/guest-experiment/PentestGPT/.env}"
+if [[ "$LEGACY_ENV_FILE" != /* ]]; then
+    LEGACY_ENV_FILE="$CALLER_CWD/$LEGACY_ENV_FILE"
+fi
+load_env_file "$LEGACY_ENV_FILE"
+load_env_file "$PROJECT_HINT/.env"
+for key in "${DOTENV_KEYS[@]}"; do
+    if [[ "${CALLER_ENV_SET[$key]:-0}" == "1" ]]; then
+        printf -v "$key" '%s' "${CALLER_ENV_VALUE[$key]}"
+        export "$key"
+    fi
+done
+
+restore_caller_alias_group() {
+    local canonical="$1"
+    shift
+    local name
+    for name in "$@"; do
+        if [[ "${CALLER_ENV_SET[$name]:-0}" == "1" ]]; then
+            printf -v "$canonical" '%s' "${CALLER_ENV_VALUE[$name]}"
+            export "$canonical"
+            return 0
+        fi
+    done
+}
+
+# Preserve caller intent across aliases even when .env defines a canonical
+# MODEL_* value.  The runner and generator both use the canonical variables.
+restore_caller_alias_group MODEL_API_KEY MODEL_API_KEY QWEN_API_KEY DASHSCOPE_API_KEY OPENAI_API_KEY
+restore_caller_alias_group MODEL_BASE_URL MODEL_BASE_URL QWEN_BASE_URL DASHSCOPE_BASE_URL OPENAI_BASE_URL
+
+PROJECT="${AOI_PROJECT:-$PROJECT_HINT}"
+PROJECT="$(cd -- "$PROJECT" && pwd)"
 GENERATOR="${AOI_GENERATOR:-$PROJECT/scripts/generate_scenario.py}"
 RUNNER="${AOI_RUNNER:-$PROJECT/scripts/run_repeatable_experiment.sh}"
 OUTPUT_ROOT="${AOI_SCENARIO_OUTPUT_ROOT:-$PROJECT/runs/XBEN-028-24/generated}"
+for path_var in GENERATOR RUNNER OUTPUT_ROOT; do
+    path_value="${!path_var}"
+    if [[ "$path_value" != /* ]]; then
+        path_value="$PROJECT/$path_value"
+    fi
+    printf -v "$path_var" '%s' "$path_value"
+done
 
 MODE="${1:-}"
 COUNT="${2:-}"
@@ -17,7 +87,12 @@ SELECTION="${AOI_SCENARIO_SELECTION:-qwen}"
 GENERATION_MODE="${AOI_SCENARIO_MODE:-api}"
 MAX_PROFILES="${AOI_SCENARIO_MAX:-3}"
 SCENARIO_SELECT="${AOI_SCENARIO_SELECT:-}"
-LOCK_DIR="${AOI_BATCH_LOCK_DIR:-${TMPDIR:-/tmp}/aoi-batch-experiment.lock}"
+COMPOSE_PROJECT="${AOI_COMPOSE_PROJECT:-guest-experiment-xben028}"
+LOCK_KEY="${COMPOSE_PROJECT//[^a-zA-Z0-9_.-]/_}"
+LOCK_DIR="${AOI_EXPERIMENT_LOCK_DIR:-${AOI_BATCH_LOCK_DIR:-${TMPDIR:-/tmp}/aoi-compose-${LOCK_KEY}.lock}}"
+if [[ "$LOCK_DIR" != /* ]]; then
+    LOCK_DIR="$PROJECT/$LOCK_DIR"
+fi
 
 usage() {
     cat <<'USAGE'
@@ -74,14 +149,74 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 4
 fi
 
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-    echo "检测到已有批处理正在运行，锁目录: $LOCK_DIR"
-    echo "确认没有其他实验后再删除该锁目录。"
+LOCK_PARENT="$(dirname -- "$LOCK_DIR")"
+if [[ -z "$LOCK_DIR" || "$LOCK_DIR" == "/" || "$LOCK_DIR" == "." ]]; then
+    echo "锁目录路径无效: ${LOCK_DIR:-<空>}"
     exit 5
 fi
-printf '%s\n' "pid=$$" "started=$(date --iso-8601=seconds 2>/dev/null || date)" > "$LOCK_DIR/owner"
-release_lock() { rm -rf "$LOCK_DIR" 2>/dev/null || true; }
-trap release_lock EXIT
+if ! mkdir -p -- "$LOCK_PARENT"; then
+    echo "无法创建锁目录父目录: $LOCK_PARENT"
+    exit 5
+fi
+
+LOCK_CREATED=0
+LOCK_TOKEN="batch-$$-$(date +%s)-$RANDOM"
+if ! mkdir -- "$LOCK_DIR" 2>/dev/null; then
+    echo "检测到同一 Compose project 已有实验运行: $COMPOSE_PROJECT"
+    echo "锁目录: $LOCK_DIR"
+    [[ -f "$LOCK_DIR/owner" ]] && sed -n '1,5p' "$LOCK_DIR/owner"
+    exit 5
+fi
+LOCK_CREATED=1
+LOCK_OWNER_TMP="$LOCK_DIR/.owner.$$"
+if ! printf '%s\n' \
+    "token=$LOCK_TOKEN" \
+    "pid=$$" \
+    "compose_project=$COMPOSE_PROJECT" \
+    "started=$(date --iso-8601=seconds 2>/dev/null || date)" \
+    > "$LOCK_OWNER_TMP" || ! mv -f -- "$LOCK_OWNER_TMP" "$LOCK_DIR/owner"; then
+    rm -f -- "$LOCK_OWNER_TMP" 2>/dev/null || true
+    if [[ ! -e "$LOCK_DIR/owner" ]]; then
+        rmdir -- "$LOCK_DIR" 2>/dev/null || true
+    fi
+    LOCK_CREATED=0
+    echo "无法写入实验锁: $LOCK_DIR"
+    exit 5
+fi
+
+release_lock() {
+    [[ "$LOCK_CREATED" -eq 1 ]] || return 0
+    if [[ ! -f "$LOCK_DIR/owner" ]] || ! grep -Fxq "token=$LOCK_TOKEN" "$LOCK_DIR/owner"; then
+        echo "警告：批处理锁所有者已变化，保留锁目录: $LOCK_DIR" >&2
+        return 1
+    fi
+    if ! rm -f -- "$LOCK_DIR/owner" || ! rmdir -- "$LOCK_DIR"; then
+        echo "警告：无法释放批处理锁: $LOCK_DIR" >&2
+        return 1
+    fi
+    LOCK_CREATED=0
+}
+
+batch_cleanup() {
+    local status=$?
+    trap - EXIT INT TERM
+    set +e
+    local lock_status=0
+    release_lock || lock_status=$?
+    if [[ "$lock_status" -ne 0 && "$status" -eq 0 ]]; then
+        status=31
+    fi
+    exit "$status"
+}
+
+export AOI_EXPERIMENT_LOCK_DIR="$LOCK_DIR"
+export AOI_EXPERIMENT_LOCK_TOKEN="$LOCK_TOKEN"
+export AOI_COMPOSE_PROJECT="$COMPOSE_PROJECT"
+export AOI_PROJECT="$PROJECT"
+export PENTESTGPT_ENV_FILE="$LEGACY_ENV_FILE"
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap batch_cleanup EXIT
 
 cd "$PROJECT"
 
@@ -151,9 +286,11 @@ run_attack() {
 
     set +e
     if [[ "$attack_type" == "baseline" ]]; then
-        bash "$RUNNER" baseline 2>&1 | tee "$output_log" | tee -a "$BATCH_LOG"
+        AOI_EXPERIMENT_LOCK_DIR="$LOCK_DIR" AOI_EXPERIMENT_LOCK_TOKEN="$LOCK_TOKEN" \
+            bash "$RUNNER" baseline 2>&1 | tee "$output_log" | tee -a "$BATCH_LOG"
     else
-        bash "$RUNNER" injected "$scenario_dir" 2>&1 | tee "$output_log" | tee -a "$BATCH_LOG"
+        AOI_EXPERIMENT_LOCK_DIR="$LOCK_DIR" AOI_EXPERIMENT_LOCK_TOKEN="$LOCK_TOKEN" \
+            bash "$RUNNER" injected "$scenario_dir" 2>&1 | tee "$output_log" | tee -a "$BATCH_LOG"
     fi
     rc=${PIPESTATUS[0]}
     set -e

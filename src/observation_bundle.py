@@ -34,6 +34,7 @@ from typing import Any, Iterable, Mapping, Optional
 
 
 SCHEMA_VERSION = "aoi.observation-bundle/v1"
+CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 DEFAULT_CLAIM_CATEGORIES = (
     "vulnerabilities",
     "wrong_patch_status",
@@ -89,6 +90,13 @@ def _as_list(value: Any) -> list[Any]:
     if isinstance(value, list):
         return value
     return [value]
+
+
+def _line_value(value: Any, default: str = "unknown") -> str:
+    """Return one printable line for header and scanner-style observations."""
+
+    text = default if value is None else str(value)
+    return CONTROL_CHARACTERS.sub(" ", text).strip() or default
 
 
 def _public_value(value: Any) -> Any:
@@ -153,7 +161,10 @@ def _claim_target_ref(target: str) -> tuple[Optional[int], Optional[str]]:
         return int(numeric.group(1)), None
     addressed = re.search(r"vulnerabilities\[([^\]]+)\]\.(?:status|cve)$", text)
     if addressed:
-        return None, addressed.group(1).strip("\"'")
+        value = addressed.group(1).strip("\"'")
+        if value.isdecimal():
+            return int(value), None
+        return None, value
     return None, None
 
 
@@ -247,12 +258,14 @@ def render_security_assessment(fake_world: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def render_headers(world: Mapping[str, Any]) -> str:
-    server = world.get("web_server") or {}
-    framework = world.get("framework") or {}
-    server_name = server.get("name", "unknown")
-    server_version = server.get("version", "unknown")
-    framework_name = framework.get("name", "unknown")
-    framework_version = framework.get("version", "unknown")
+    server_value = world.get("web_server")
+    framework_value = world.get("framework")
+    server = server_value if isinstance(server_value, Mapping) else {}
+    framework = framework_value if isinstance(framework_value, Mapping) else {}
+    server_name = _line_value(server.get("name"))
+    server_version = _line_value(server.get("version"))
+    framework_name = _line_value(framework.get("name"))
+    framework_version = _line_value(framework.get("version"))
     return (
         f"Server: {server_name}/{server_version}\n"
         f"X-Powered-By: {framework_name}/{framework_version}"
@@ -260,23 +273,27 @@ def render_headers(world: Mapping[str, Any]) -> str:
 
 
 def render_nmap(world: Mapping[str, Any]) -> str:
-    server = world.get("web_server") or {}
-    name = server.get("name", "unknown")
-    version = server.get("version", "unknown")
+    server_value = world.get("web_server")
+    server = server_value if isinstance(server_value, Mapping) else {}
+    name = _line_value(server.get("name"))
+    version = _line_value(server.get("version"))
     lines: list[str] = []
-    for service in world.get("services", []) or []:
+    services = world.get("services", [])
+    if not isinstance(services, list):
+        return ""
+    for service in services:
         if not isinstance(service, Mapping):
             continue
-        port = service.get("port")
-        protocol = str(service.get("protocol", "tcp"))
-        if port is None:
+        if service.get("port") is None:
             continue
+        port = _line_value(service.get("port"))
+        protocol = _line_value(service.get("protocol"), "tcp").lower()
         if protocol == "http":
             lines.append(f"{port}/tcp open  http     {name} httpd {version}")
         elif protocol == "https":
             lines.append(f"{port}/tcp open  ssl/http {name} httpd {version}")
         else:
-            service_name = service.get("service", protocol)
+            service_name = _line_value(service.get("service"), protocol)
             lines.append(f"{port}/tcp open  {service_name} {name} {version}")
     return "\n".join(lines)
 
@@ -287,9 +304,9 @@ def _environment_page(environment: Mapping[str, Any]) -> str:
     for key in ("os", "web_server", "framework", "database"):
         value = world.get(key)
         if isinstance(value, Mapping):
-            label = html.escape(key)
-            name = html.escape(str(value.get("name", "unknown")))
-            version = html.escape(str(value.get("version", "unknown")))
+            label = html.escape(_line_value(key))
+            name = html.escape(_line_value(value.get("name")))
+            version = html.escape(_line_value(value.get("version")))
             rows.append(f"<tr><th>{label}</th><td>{name} {version}</td></tr>")
     return (
         "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>Environment</title></head>"
@@ -299,6 +316,7 @@ def _environment_page(environment: Mapping[str, Any]) -> str:
 
 def _claim_page(title: str, claims: Any) -> str:
     payload = html.escape(json.dumps(claims, ensure_ascii=False, indent=2))
+    title = _line_value(title, "Claims")
     return (
         "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>"
         + html.escape(title)
@@ -320,7 +338,16 @@ def _observation_page(value: Mapping[str, Any], fallback: str) -> tuple[str, str
     path = "/".join(safe_parts) or fallback
     if not path.lower().endswith((".html", ".htm")):
         path += ".html"
-    body = value.get("html") or value.get("content") or value.get("body")
+    body = value.get("html")
+    if isinstance(body, str) and body.strip():
+        # ``html`` is the explicit markup channel used by generated pages.
+        body = body
+    else:
+        plain_body = value.get("content") or value.get("body")
+        if plain_body is not None:
+            body = "<p>" + html.escape(str(plain_body)) + "</p>"
+        else:
+            body = None
     if body is None:
         body = _claim_page(
             str(value.get("title") or "Synthetic page"),
@@ -358,7 +385,8 @@ def _safe_page_path(raw_path: Any, fallback: str, used: set[str]) -> str:
     suffix = Path(path).suffix or ".html"
     parent = Path(path).parent.as_posix()
     counter = 2
-    while candidate in used:
+    used_keys = {item.casefold() for item in used}
+    while candidate.casefold() in used_keys:
         name = f"{stem}-{counter}{suffix}"
         candidate = f"{parent}/{name}" if parent != "." else name
         counter += 1
@@ -371,6 +399,23 @@ def _safe_component(value: Any, fallback: str = "claim") -> str:
 
     component = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value)).strip(".")
     return component or fallback
+
+
+def _claim_file_names(categories: Iterable[str]) -> dict[str, str]:
+    """Assign collision-free, stable file components to claim categories."""
+
+    names: dict[str, str] = {}
+    used: set[str] = set()
+    for category in sorted(categories):
+        base = _safe_component(category)
+        candidate = base
+        counter = 2
+        while candidate.casefold() in used:
+            candidate = f"{base}-{counter}"
+            counter += 1
+        used.add(candidate.casefold())
+        names[category] = candidate
+    return names
 
 
 def _artifact_descriptor(relative_path: str) -> tuple[str, str]:
@@ -412,6 +457,7 @@ def render_artifacts(
     del scenario  # Reserved for future per-scenario observation channels.
     world = _source_world(fake_world)
     claims = _claims(fake_world)
+    claim_names = _claim_file_names(claims)
     environment = render_environment(fake_world)
     artifacts: dict[str, str] = {
         "environment.json": _json_text(environment),
@@ -422,7 +468,7 @@ def render_artifacts(
     }
 
     for category in sorted(claims):
-        claim_path = f"claims/{_safe_component(category)}.json"
+        claim_path = f"claims/{claim_names[category]}.json"
         artifacts[claim_path] = _json_text(
             {
                 "schema_version": "aoi.claim-observation/v1",
@@ -431,7 +477,10 @@ def render_artifacts(
             }
         )
 
-    used_pages = {"environment.html"}
+    used_pages = {
+        "environment.html",
+        *(f"claims-{name}.html" for name in claim_names.values()),
+    }
     for index, item in enumerate(_as_list(fake_world.get("observations"))):
         if not isinstance(item, Mapping):
             continue
@@ -441,12 +490,7 @@ def render_artifacts(
         artifacts[f"pages/{page_path}"] = body.rstrip() + "\n"
 
     for category in sorted(claims):
-        page_path = f"pages/claims-{category}.html"
-        # A malformed category name must not escape the pages directory.
-        safe_name = _safe_component(category)
-        page_path = f"pages/claims-{safe_name}.html"
-        if page_path in artifacts:
-            continue
+        page_path = f"pages/claims-{claim_names[category]}.html"
         artifacts[page_path] = _claim_page(
             f"Claims: {category}",
             _public_value(claims[category]),

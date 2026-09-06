@@ -100,6 +100,97 @@ def flatten_json(data, prefix=""):
     return result
 
 
+def _claim_changes(fake_world):
+    """Return canonical paths represented by synthetic observation claims.
+
+    The original validator predates the observation bundle and compared only
+    ``fake_world.world`` with the real fixture.  New scenarios keep claims
+    separately, so those paths need to participate in the same reconciliation
+    without pretending that a claim changed the source world itself.
+    """
+
+    if not isinstance(fake_world, dict):
+        return set()
+    claims = fake_world.get("claims", {})
+    if not isinstance(claims, dict):
+        claims = {}
+    changes = set()
+    selected_profiles = fake_world.get("selected_profiles")
+    new_contract = isinstance(selected_profiles, list)
+    selected_set = set(selected_profiles) if new_contract else set()
+
+    def add_list(path, value):
+        if isinstance(value, list) and value:
+            changes.add(f"{path}[]")
+        elif value is not None and not isinstance(value, list):
+            changes.add(path)
+
+    def target_path(raw_target):
+        if not isinstance(raw_target, str) or not raw_target.strip():
+            return None
+        target = raw_target.strip()
+        for prefix in ("world.", "claims."):
+            if target.startswith(prefix):
+                target = target[len(prefix):]
+        if not target.startswith("security_assessment."):
+            target = f"security_assessment.{target}"
+        return target
+
+    # Vulnerability and patch claims may describe a precise API field.  The
+    # v2 scenario format records that precise path; legacy claim-only data is
+    # represented by the category wildcard instead.
+    vulnerability_claims = claims.get("vulnerabilities")
+    if isinstance(vulnerability_claims, list) and vulnerability_claims:
+        for claim in vulnerability_claims:
+            if not isinstance(claim, dict):
+                continue
+            raw_target = claim.get("target") or claim.get("target_path") or claim.get("path")
+            target = target_path(raw_target)
+            if (
+                target is None
+                and new_contract
+                and (claim.get("profile_id") == "fake_cve" or "fake_cve" in selected_set)
+                and (claim.get("cve") or claim.get("fake_cve"))
+            ):
+                claim_id = claim.get("id") or claim.get("vulnerability_id")
+                if claim_id is not None and str(claim_id).strip():
+                    target = f"security_assessment.vulnerabilities[{str(claim_id).strip()}].cve"
+            if target is not None:
+                changes.add(target)
+            else:
+                changes.add("claims.vulnerabilities[]")
+    elif vulnerability_claims is not None:
+        add_list("claims.vulnerabilities", vulnerability_claims)
+
+    patch_claims = claims.get("wrong_patch_status")
+    if isinstance(patch_claims, list) and patch_claims:
+        for claim in patch_claims:
+            if not isinstance(claim, dict):
+                continue
+            target = target_path(claim.get("target") or claim.get("target_path") or claim.get("path"))
+            if target is not None:
+                changes.add(target)
+            else:
+                changes.add("claims.wrong_patch_status[]")
+    elif patch_claims is not None:
+        add_list("claims.wrong_patch_status", patch_claims)
+
+    for category, value in claims.items():
+        if category in {"vulnerabilities", "wrong_patch_status"}:
+            continue
+        base = f"claims.{category}"
+        if isinstance(value, dict):
+            for key, item in value.items():
+                add_list(f"{base}.{key}", item)
+        else:
+            add_list(base, value)
+
+    observations = fake_world.get("observations")
+    if isinstance(observations, list) and observations:
+        changes.add("observations.pages[]")
+    return changes
+
+
 # ============================================================
 # Calculate actual changes
 # ============================================================
@@ -115,6 +206,11 @@ def calculate_actual_changes(
 
     # real_world 顶层有 environment_id，
     # 这个字段不属于 world 内容，因此去掉。
+    if not isinstance(real_world, dict):
+        real_world = {}
+    if not isinstance(fake_world, dict):
+        fake_world = {}
+
     real_content = {
         key: value
         for key, value in real_world.items()
@@ -125,6 +221,8 @@ def calculate_actual_changes(
         "world",
         {}
     )
+    if not isinstance(fake_content, dict):
+        fake_content = {}
 
     real_flat = flatten_json(
         real_content
@@ -156,6 +254,11 @@ def calculate_actual_changes(
         if real_value != fake_value:
             changed.append(path)
 
+    # Claims and generated observation pages have no counterpart in the real
+    # world fixture, so reconcile them as synthetic additions.  World paths
+    # above intentionally retain their legacy spelling for compatibility.
+    changed.extend(sorted(_claim_changes(fake_world)))
+
     return changed
 
 
@@ -172,30 +275,40 @@ def validate_internal_consistency(
 
     errors = []
 
-    world = fake_world.get(
-        "world",
-        {}
-    )
+    if not isinstance(fake_world, dict):
+        return ["fake_world must be a JSON object"]
+
+    world = fake_world.get("world", {})
+    if not isinstance(world, dict):
+        return ["world must be a JSON object"]
 
     # --------------------------------------------------------
     # Web Server vs HTTP/HTTPS Service
     # --------------------------------------------------------
 
-    web_server = world.get(
-        "web_server",
-        {}
-    )
+    web_server = world.get("web_server", {})
+    if web_server is None:
+        web_server = {}
+    if not isinstance(web_server, dict):
+        errors.append("web_server must be a JSON object")
+        web_server = {}
 
     web_server_name = web_server.get(
         "name"
     )
 
-    services = world.get(
-        "services",
-        []
-    )
+    services = world.get("services", [])
+    if services is None:
+        services = []
+    if not isinstance(services, list):
+        errors.append("services must be a JSON array")
+        services = []
 
-    for service in services:
+    for index, service in enumerate(services):
+
+        if not isinstance(service, dict):
+            errors.append(f"services[{index}] must be a JSON object")
+            continue
 
         protocol = service.get(
             "protocol"
@@ -218,8 +331,8 @@ def validate_internal_consistency(
                 web_server_name
                 and service_name
                 and
-                web_server_name.lower()
-                != service_name.lower()
+                str(web_server_name).lower()
+                != str(service_name).lower()
             ):
 
                 errors.append(
@@ -248,6 +361,12 @@ def validate_changed_fields(
     """
 
     errors = []
+    if not isinstance(fake_world, dict):
+        return (
+            ["fake_world must be a JSON object"],
+            calculate_actual_changes(real_world, {}),
+            []
+        )
 
     # 程序自己算出真正修改的字段
     actual_changes = (
@@ -258,18 +377,22 @@ def validate_changed_fields(
     )
 
     # 模型声明的字段
-    declared_changes = (
+    declared_value = (
         fake_world.get(
             "changed_fields",
             []
         )
     )
+    if not isinstance(declared_value, list):
+        errors.append("changed_fields must be a JSON array")
+        declared_value = []
 
-    declared_changes = [
-        normalize_field_path(field)
-        for field in declared_changes
-        if isinstance(field, str)
-    ]
+    declared_changes = []
+    for index, field in enumerate(declared_value):
+        if not isinstance(field, str) or not field.strip():
+            errors.append(f"changed_fields[{index}] must be a non-empty string")
+            continue
+        declared_changes.append(normalize_field_path(field))
 
     # 去重
     declared_changes = sorted(
@@ -346,6 +469,12 @@ def validate_metadata(
 
     errors = []
 
+    if not isinstance(real_world, dict):
+        errors.append("real_world must be a JSON object")
+        real_world = {}
+    if not isinstance(fake_world, dict):
+        return errors + ["fake_world must be a JSON object"]
+
     real_environment_id = (
         real_world.get(
             "environment_id"
@@ -357,6 +486,11 @@ def validate_metadata(
             "source_environment_id"
         )
     )
+
+    if not isinstance(real_environment_id, str) or not real_environment_id.strip():
+        errors.append("real_world.environment_id must be a non-empty string")
+    if not isinstance(source_environment_id, str) or not source_environment_id.strip():
+        errors.append("source_environment_id must be a non-empty string")
 
     if (
         real_environment_id
@@ -376,6 +510,8 @@ def validate_metadata(
         errors.append(
             "Missing top-level field: world"
         )
+    elif not isinstance(fake_world["world"], dict):
+        errors.append("world must be a JSON object")
 
     if "changed_fields" not in fake_world:
 
@@ -383,6 +519,13 @@ def validate_metadata(
             "Missing top-level field: "
             "changed_fields"
         )
+    elif not isinstance(fake_world["changed_fields"], list):
+        errors.append("changed_fields must be a JSON array")
+
+    if "claims" in fake_world and not isinstance(fake_world["claims"], dict):
+        errors.append("claims must be a JSON object")
+    if "observations" in fake_world and not isinstance(fake_world["observations"], list):
+        errors.append("observations must be a JSON array")
 
     return errors
 
