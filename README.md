@@ -110,7 +110,7 @@ Codex 攻击进程，不包含场景生成、Qwen 选择/生成、注入、恢�
 每次攻击启动时，脚本都会重新加载项目 `.env`，并以它作为 Key、URL 和模型的唯一来源；
 随后为本次 Codex 进程建立临时的 `aoi_dotenv` Provider：
 `MODEL_API_KEY` 作为认证密钥，`MODEL_BASE_URL` 作为接口地址，`MODEL_NAME` 传给
-`codex exec --model`。旧的全局 Codex Provider、旧 PentestGPT `.env` 和当前 shell
+`codex exec --model`，并通过 `env_key=OPENAI_API_KEY` 写入 Authorization 头。旧的全局 Codex Provider、旧 PentestGPT `.env` 和当前 shell
 中的同名变量都不会覆盖项目 `.env`；缺少这三个配置时脚本会直接退出。
 
 ## Run a batch of experiments

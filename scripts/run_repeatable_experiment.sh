@@ -563,6 +563,7 @@ codex exec \
     -c 'model_providers.aoi_dotenv.name="AOI dotenv provider"' \
     -c "model_providers.aoi_dotenv.base_url=\"$BASE_URL\"" \
     -c 'model_providers.aoi_dotenv.wire_api="responses"' \
+    -c 'model_providers.aoi_dotenv.env_key="OPENAI_API_KEY"' \
     -c 'model_providers.aoi_dotenv.requires_openai_auth=true' \
     --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --cd "$PROJECT" --model "$MODEL_NAME" "$ATTACK_PROMPT" 2>&1 | tee "$RUN_DIR/attack_transcript.log"
 STATUS=${PIPESTATUS[0]}
